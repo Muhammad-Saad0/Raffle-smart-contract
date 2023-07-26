@@ -104,6 +104,7 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
         /*callback gas limit basically
         determines how much gas can
         fulfillRandomWords function can take */
+        s_raffleState = RaffleState.CALCULATING;
         uint256 requestId = i_VRFCoordinator.requestRandomWords(
             i_gasLane,
             i_subscriptionId,
@@ -111,7 +112,6 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
             i_callbackGasLimit,
             NUM_WORDS
         );
-        s_raffleState = RaffleState.CALCULATING;
         emit RequestedRaffleWinner(requestId);
     }
 
@@ -156,5 +156,9 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
 
     function getLatestTimeStamp() public view returns (uint256) {
         return s_lastTimeStamp;
+    }
+
+    function getSubId() public view returns (uint64) {
+        return i_subscriptionId;
     }
 }

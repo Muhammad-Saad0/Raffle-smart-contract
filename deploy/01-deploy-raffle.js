@@ -17,14 +17,17 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
   let VRFCoordinatorV2Address, subscriptionId, VRFCoordinatorV2Mock;
   if (developmentChains.includes(network.name)) {
     VRFCoordinatorV2Mock = await ethers.getContract(
-      "VRFCoordinatorV2Mock"
+      "VRFCoordinatorV2Mock",
+      deployer
     );
     VRFCoordinatorV2Address = VRFCoordinatorV2Mock.address;
+
     //getting subscriptionId for a local chain
     const transactionResponse =
       await VRFCoordinatorV2Mock.createSubscription();
     const transactionReciept = await transactionResponse.wait();
     subscriptionId = transactionReciept.events[0].args.subId;
+
     await VRFCoordinatorV2Mock.fundSubscription(
       subscriptionId,
       SUBSCRIPTION_FUND_AMOUNT
@@ -33,6 +36,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     VRFCoordinatorV2Address =
       networkConfig[chainID]["VRFCoordinatorAddress"];
     subscriptionId = networkConfig[chainID]["subscriptionId"];
+    console.log("INSIDE ELSE.");
   }
 
   const enteranceFee =
@@ -59,6 +63,8 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     waitConfirmations: network.config.blockConfirmations || 1,
   });
   console.log("Raffle contract deployed.");
+
+  await VRFCoordinatorV2Mock.addConsumer(subscriptionId, Raffle.address);
 
   if (
     !developmentChains.includes(network.name) &&

@@ -1,9 +1,10 @@
 const { network, ethers } = require("hardhat");
 const { developmentChains } = require("../helper-hardhat-config");
 
+//base fee is the minimum fee required to initiate a request for random words.
 const BASE_FEE = ethers.utils.parseEther("0.25");
-//This is link per gas
 
+//This is link per gas
 const GAS_PRICE_LINK = 1e9;
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
