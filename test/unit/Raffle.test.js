@@ -104,12 +104,9 @@ console.log(network.name);
       });
 
       describe("Testing performUpKeep method", () => {
-        beforeEach(async () => {
-          await raffle.enterRaffle({ value: sendETH });
-        });
-
         describe("testing when enough time has passed", () => {
           beforeEach(async () => {
+            await raffle.enterRaffle({ value: sendETH });
             let currentTimestamp = (await ethers.provider.getBlock())
               .timestamp;
             const nextBlockTimeStamp =
@@ -122,18 +119,96 @@ console.log(network.name);
           });
 
           it("emits an event when succesfull", async () => {
-            //performing upkeep to set Raffel State to false
-            const tx = await raffle.performUpkeep([]);
-            const reciept = await tx.wait(1);
-            const requestId = reciept.events[1].args.requestId;
+            await new Promise(async (resolve, reject) => {
+              raffle.once("RequestedRaffleWinner", async () => {
+                console.log("EVENT WAS FIRED!!!!!!!!!");
+                resolve();
+              });
 
-            expect(requestId.toString()).to.be.equal("1");
+              const tx = await raffle.performUpkeep([]);
+              // await expect(tx).to.emit(raffle, "RequestedRaffleWinner");
+              const reciept = await tx.wait(1);
+              const requestId = reciept.events[1].args.requestId;
+              expect(requestId.toString()).to.be.equal("1");
+            });
+            //performing upkeep to set Raffel State to false
           });
 
           it("Updates raffle state to calculating", async () => {
             await raffle.performUpkeep([]);
             const raffleState = await raffle.getRaffleState();
             expect(Number(raffleState)).to.equal(1);
+          });
+        });
+      });
+
+      describe("Testing fulfillRandomWords functionality", () => {
+        it("reverts if the subscription id is not valid", async () => {
+          await expect(
+            vrfCoordinatorMock.fulfillRandomWords(0, raffle.address)
+          ).to.be.revertedWith("nonexistent request");
+        });
+
+        it("simulating the process", async () => {
+          let currentTimestamp = (await ethers.provider.getBlock())
+            .timestamp;
+          const nextBlockTimeStamp =
+            currentTimestamp + Number(interval) + 1;
+          await ethers.provider.send("evm_setNextBlockTimestamp", [
+            nextBlockTimeStamp,
+          ]);
+          //moving to the new block to get the updated timestamp
+          await ethers.provider.send("evm_mine");
+          const accounts = await ethers.getSigners();
+          await raffle.enterRaffle({ value: sendETH });
+          const startingBalance = await ethers.provider.getBalance(
+            accounts[3].address
+          );
+
+          for (let i = 1; i < 4; i++) {
+            await raffle
+              .connect(accounts[i])
+              .enterRaffle({ value: sendETH });
+          }
+
+          let transactionReceipt;
+
+          await new Promise(async (resolve, reject) => {
+            raffle.once("WinnerPicked", async () => {
+              console.log("winner picked event fired!!");
+
+              try {
+                const raffleState = await raffle.getRaffleState();
+                const recentWinner = await raffle.getRecentWinner();
+                const winnerBalance = await ethers.provider.getBalance(
+                  recentWinner
+                );
+                expect(winnerBalance).to.be.above(
+                  startingBalance.add(sendETH.mul(2))
+                );
+                expect(raffleState.toString()).to.equal("0");
+                await expect(raffle.getPlayer(0)).to.be.reverted;
+                resolve();
+              } catch (error) {
+                console.log(error);
+                reject();
+              }
+            });
+
+            try {
+              const tx = await raffle.performUpkeep([]);
+              const reciept = await tx.wait(1);
+              const requestId = reciept.events[1].args.requestId;
+              const transaction =
+                await vrfCoordinatorMock.fulfillRandomWords(
+                  requestId,
+                  raffle.address
+                );
+              transactionReceipt = await transaction.wait(1);
+            } catch (error) {
+              console.log(error.message);
+              reject();
+            }
           });
         });
       });
